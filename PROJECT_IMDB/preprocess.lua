@@ -18,9 +18,11 @@ Output = {}
 
 for i = 1, #Source do
 	-- Check whether the film has necessary data
-	if not(Source[i]['IMDB Rating']) then
+	if not(Source[i]['Title']) then
+		print(string.format("Film %d [] Removed because: No Title", i))
+	elseif not(Source[i]['IMDB Rating']) then
 		print(string.format("Film %d [%s] Removed because: No IMDB Rating", i, Source[i]["Title"]))
-	elseif not(Source[i]['IMDB Votes']) then
+    elseif not(Source[i]['IMDB Votes']) then
 		print(string.format("Film %d [%s] Removed because: No IMDB Votes", i, Source[i]["Title"]))
 	elseif not(Source[i]['Worldwide Gross']) then
 		print(string.format("Film %d [%s] Removed because: No Worldwide Gross", i, Source[i]["Title"]))
@@ -42,5 +44,5 @@ for i = 1, #Source do
 end
 
 print(string.format("Finished: %d Valid films with %d genres", #Output, #Genres))
-io.output("movie_processed.json"):write(Json.encode(Output))
+io.output("movies_processed.json"):write(Json.encode(Output))
 print(Json.encode(Genres))
