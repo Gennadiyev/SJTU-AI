@@ -7,11 +7,10 @@
 This repository does **not** welcome pull requests, with exceptions for the following cases:
 - Typo fixes
 - Disambiguation
+- Bug fixes
 
-For any advice, submit an issue instead.
+For any advice (style / code / anything), submit an issue instead.
 
 ## To classmates or later SJTU-AI students...
 
-The notes are quite informal and are taken down real quickly. So it might not be the detailed notes.
-
-Meanwhile NO WARRANTY PROVIDED, continue on your own risk.
+The notes are quite informal and are taken down real quickly. So it might not be the most detailed notes you can find. In addition, NO WARRANTY IS PROVIDED, proceed on your own risk.
