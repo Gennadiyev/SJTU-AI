@@ -4,86 +4,86 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-def getPoolingKernel(kernel_size = 25):
-    half_size = float(kernel_size)/2.0
-    xc2 = []
-    for i in range(kernel_size):
-        xc2.append(half_size - abs(float(i)+0.5-half_size))
-    xc2 = np.array(xc2)
-    kernel = np.outer(xc2.T,xc2)
-    kernel = kernel/(half_size**2)
+def getPoolingKernel(kernelSize = 25):
+    sizeHalved = float(kernelSize)/2.0
+    position = []
+    for i in range(kernelSize):
+        position.append(sizeHalved - abs(float(i)+0.5-sizeHalved))
+    position = np.array(position)
+    kernel = np.outer(position.T, position)
+    kernel = kernel / (sizeHalved**2)
     return kernel
 
-def get_bin_weight_kernel_size_and_stride(patch_size, num_spatial_bins):
-    ks = 2*int(patch_size / (num_spatial_bins+1));
-    stride= patch_size // num_spatial_bins
-    pad = ks //4
-    return ks, stride,pad
+def getParams(patchSize, spatialBinCount):
+    ks = 2*int(patchSize / (spatialBinCount+1));
+    stride= patchSize // spatialBinCount
+    pad = ks // 4
+    return ks, stride, pad
 
 class SIFTNet(nn.Module):
-    def CircularGaussKernel(self,kernlen=21, circ = True, sigma_type = 'hesamp'):
-        halfSize = float(kernlen) / 2.;
-        r2 = float(halfSize**2);
-        if sigma_type == 'hesamp':
-            sigma_mul_2 = 0.9 * r2;
-        elif sigma_type == 'vlfeat':
-            sigma_mul_2 = kernlen**2
+    def getCircularGaussKernel(self, kernelSize=21, circularFlag = True, sigmaType = 'hesamp'):
+        halfSize = float(kernelSize) / 2.;
+        r2 = float(halfSize ** 2);
+        if sigmaType == 'hes':
+            sigmaSquared = 0.9 * r2;
+        elif sigmaType == 'sqr':
+            sigmaSquared = kernelSize ** 2
         else:
-            raise ValueError('Unknown sigma_type', sigma_type, 'try hesamp or vlfeat')
-        disq = 0;
-        kernel = np.zeros((kernlen,kernlen))
-        for y in range(kernlen):
-            for x in range(kernlen):
-                disq = (y - halfSize+0.5)**2 +  (x - halfSize+0.5)**2;
-                kernel[y,x] = math.exp(-disq / sigma_mul_2)
-                if circ and (disq >= r2):
+            raise ValueError('Unknown sigmaType:', sigmaType)
+        distance = 0;
+        kernel = np.zeros((kernelSize,kernelSize))
+        for y in range(kernelSize):
+            for x in range(kernelSize):
+                distance = (y - halfSize+0.5)**2 +  (x - halfSize+0.5)**2;
+                kernel[y,x] = math.exp(-distance / sigmaSquared)
+                if circularFlag and (distance >= r2):
                     kernel[y,x] = 0.
         return kernel
     def __repr__(self):
-            return self.__class__.__name__ + '(' + 'num_ang_bins=' + str(self.num_ang_bins) +\
-             ', ' + 'num_spatial_bins=' + str(self.num_spatial_bins) +\
-             ', ' + 'patch_size=' + str(self.patch_size) +\
+            return self.__class__.__name__ + '(' + 'angBinCount=' + str(self.angBinCount) +\
+             ', ' + 'spatialBinCount=' + str(self.spatialBinCount) +\
+             ', ' + 'patchSize=' + str(self.patchSize) +\
              ', ' + 'rootsift=' + str(self.rootsift) +\
-             ', ' + 'sigma_type=' + str(self.sigma_type) +\
-             ', ' + 'mask_type=' + str(self.mask_type) +\
+             ', ' + 'sigmaType=' + str(self.sigmaType) +\
+             ', ' + 'maskType=' + str(self.maskType) +\
              ', ' + 'clipval=' + str(self.clipval) + ')'
     def __init__(self,
-                 patch_size = 65, 
-                 num_ang_bins = 8,
-                 num_spatial_bins = 4,
+                 patchSize = 65, 
+                 angBinCount = 8,
+                 spatialBinCount = 4,
                  clipval = 0.2,
                  rootsift = False,
-                 mask_type = 'CircularGauss',
-                 sigma_type = 'hesamp'):
+                 maskType = 'CircularGauss',
+                 sigmaType = 'hes'):
         super(SIFTNet, self).__init__()
         self.eps = 1e-10
-        self.num_ang_bins = num_ang_bins
-        self.num_spatial_bins = num_spatial_bins
+        self.angBinCount = angBinCount 
+        self.spatialBinCount = spatialBinCount
         self.clipval = clipval
         self.rootsift = rootsift
-        self.mask_type = mask_type
-        self.patch_size = patch_size
-        self.sigma_type = sigma_type
+        self.maskType = maskType
+        self.patchSize = patchSize
+        self.sigmaType = sigmaType
 
-        if self.mask_type == 'CircularGauss':
-            self.gk = torch.from_numpy(self.CircularGaussKernel(kernlen=patch_size, circ=True, sigma_type=sigma_type).astype(np.float32))
-        elif self.mask_type == 'Gauss':
-            self.gk = torch.from_numpy(self.CircularGaussKernel(kernlen=patch_size, circ=False, sigma_type=sigma_type).astype(np.float32))
-        elif self.mask_type == 'Uniform':
-            self.gk = torch.ones(patch_size,patch_size).float() / float(patch_size*patch_size)
+        if self.maskType == 'CircularGauss':
+            self.gk = torch.from_numpy(self.getCircularGaussKernel(kernl en=patchSize, circ=True, sigmaType=sigmaType).astype(np.float32))
+        elif self.maskType == 'Gauss':
+            self.gk = torch.from_numpy(self.getCircularGaussKernel(kernl en=patchSize, circ=False, sigmaType=sigmaType).astype(np.float32))
+        elif self.maskType == 'Uniform':
+            self.gk = torch.ones(patchSize,patchSize).float() / float(patchSize*patchSize)
         else:
-            raise ValueError(masktype, 'is unknown mask type')
+            raise ValueError('Unknown maskType:', maskType)
             
-        self.bin_weight_kernel_size, self.bin_weight_stride, self.pad = get_bin_weight_kernel_size_and_stride(patch_size, num_spatial_bins)
-        self.gx =  nn.Conv2d(1, 1, kernel_size=(1,3),  bias = False)
+        self.kernelSize, self.stride, self.pad = getParams(patchSize, spatialBinCount)
+        self.gx = nn.Conv2d(1, 1, kernelSize=(1,3),  bias = False)
         self.gx.weight.data = torch.tensor(np.array([[[[-1, 0, 1]]]], dtype=np.float32))
         
-        self.gy = nn.Conv2d(1, 1, kernel_size=(3,1),  bias = False)
+        self.gy = nn.Conv2d(1, 1, kernelSize=(3,1),  bias = False)
         self.gy.weight.data = torch.from_numpy(np.array([[[[-1], [0], [1]]]], dtype=np.float32))
-        nw = getPoolingKernel(kernel_size = self.bin_weight_kernel_size)
+        nw = getPoolingKernel(kernelSize = self.kernelSize)
         
-        self.pk = nn.Conv2d(1, 1, kernel_size=(nw.shape[0], nw.shape[1]),
-                            stride = (self.bin_weight_stride, self.bin_weight_stride),
+        self.pk = nn.Conv2d(1, 1, kernelSize=(nw.shape[0], nw.shape[1]),
+                            stride = (self.stride, self.stride),
                             padding = (self.pad , self.pad ),
                             bias = False)
         new_weights = np.array(nw.reshape((1, 1, nw.shape[0],nw.shape[1])))
@@ -96,22 +96,22 @@ class SIFTNet(nn.Module):
         mag = torch.sqrt(gx * gx + gy * gy + self.eps)
         ori = torch.atan2(gy, gx + self.eps)
         mag  = mag * self.gk.expand_as(mag).to(mag.device)
-        o_big = (ori + 2.0 * math.pi )/ (2.0 * math.pi) * float(self.num_ang_bins)
-        bo0_big_ =  torch.floor(o_big)
-        wo1_big_ = o_big - bo0_big_
-        bo0_big =  bo0_big_ %  self.num_ang_bins
-        bo1_big = (bo0_big + 1) % self.num_ang_bins
-        wo0_big = (1.0 - wo1_big_) * mag
-        wo1_big = wo1_big_ * mag
-        ang_bins = []
-        for i in range(0, self.num_ang_bins):
-            out = self.pk((bo0_big == i).float() * wo0_big + (bo1_big == i).float() * wo1_big)
-            ang_bins.append(out)
-        ang_bins = torch.cat(ang_bins,1)
-        ang_bins = ang_bins.view(ang_bins.size(0), -1)
-        ang_bins = F.normalize(ang_bins, p=2)
-        ang_bins = torch.clamp(ang_bins, 0., float(self.clipval))
-        ang_bins = F.normalize(ang_bins, p=2)
+        oLarge = (ori + 2.0 * math.pi )/ (2.0 * math.pi) * float(self.angBinCount )
+        boLarge =  torch.floor(oLarge)
+        woLarge = oLarge - boLarge
+        boLarge2 =  boLarge %  self.angBinCount 
+        boLarge3 = (boLarge2 + 1) % self.angBinCount 
+        woLarge2 = (1.0 - woLarge) * mag
+        woLarge3 = woLarge * mag
+        angBins = []
+        for i in range(0, self.angBinCount):
+            out = self.pk((boLarge2 == i).float() * woLarge2 + (boLarge3 == i).float() * woLarge3)
+            angBins.append(out)
+        angBins = torch.cat(angBins,1)
+        angBins = angBins.view(angBins.size(0), -1)
+        angBins = F.normalize(angBins, p=2)
+        angBins = torch.clamp(angBins, 0., float(self.clipval))
+        angBins = F.normalize(angBins, p=2)
         if self.rootsift:
-            ang_bins = torch.sqrt(F.normalize(ang_bins,p=1) + 1e-10)
-        return ang_bins
+            angBins = torch.sqrt(F.normalize(angBins,p=1) + 1e-10)
+        return angBins
